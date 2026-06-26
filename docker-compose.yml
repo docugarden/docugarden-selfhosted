@@ -1,0 +1,168 @@
+name: docugarden
+
+services:
+  db:
+    image: mongo:7.0
+    container_name: docugarden-db
+    volumes:
+      - mongo_data:/data/db
+    secrets:
+      - mongodb-username
+      - mongodb-password
+      - mongodb-database
+    environment:
+      MONGO_INITDB_ROOT_USERNAME_FILE: /run/secrets/mongodb-username
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongodb-password
+      MONGO_INITDB_DATABASE_FILE: /run/secrets/mongodb-database
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - docugarden-net
+
+  rustfs:
+    image: rustfs/rustfs:1.0.0-beta.8
+    container_name: docugarden-rustfs
+    environment:
+      - RUSTFS_VOLUMES=/data
+      - RUSTFS_ADDRESS=0.0.0.0:9000
+      - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_ACCESS_KEY_FILE=/run/secrets/rustfs-access-key
+      - RUSTFS_SECRET_KEY_FILE=/run/secrets/rustfs-secret-key
+    volumes:
+      - rustfs_data:/data
+    secrets:
+      - rustfs-access-key
+      - rustfs-secret-key
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - docugarden-net
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: docugarden-gotenberg
+    command:
+      - gotenberg
+      - --api-timeout=120s
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - docugarden-net
+
+  backend:
+    image: docugarden/docugarden-backend:${IMAGE_TAG:-latest}
+    container_name: docugarden-backend
+    depends_on:
+      db:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+    volumes:
+      - app_data:/app/apps/backend/uploads
+      - /etc/machine-id:/etc/machine-id:ro
+    secrets:
+      - mongodb-username
+      - mongodb-password
+      - mongodb-database
+      - jwt-secret
+      - mongodb-encryption-key
+      - mongodb-signing-key
+      - rustfs-access-key
+      - rustfs-secret-key
+      - license-key
+      - license-server-url
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - CORS_ORIGIN=${CORS_ORIGIN:-}
+      - MONGODB_HOST=db
+      - MONGODB_PORT=27017
+      - RUSTFS_ENDPOINT=rustfs
+      - RUSTFS_PORT=9000
+      - GOTENBERG_URL=http://gotenberg:3000
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('http').get('http://localhost:4000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
+    restart: unless-stopped
+    networks:
+      - docugarden-net
+
+  frontend:
+    image: docugarden/docugarden-frontend:${IMAGE_TAG:-latest}
+    container_name: docugarden-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:80/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
+    restart: unless-stopped
+    networks:
+      - docugarden-net
+
+secrets:
+  mongodb-username:
+    file: ./secrets/mongodb-username.txt
+  mongodb-password:
+    file: ./secrets/mongodb-password.txt
+  mongodb-database:
+    file: ./secrets/mongodb-database.txt
+  jwt-secret:
+    file: ./secrets/jwt-secret.txt
+  mongodb-encryption-key:
+    file: ./secrets/mongodb-encryption-key.txt
+  mongodb-signing-key:
+    file: ./secrets/mongodb-signing-key.txt
+  rustfs-access-key:
+    file: ./secrets/rustfs-access-key.txt
+  rustfs-secret-key:
+    file: ./secrets/rustfs-secret-key.txt
+  license-key:
+    file: ./secrets/license-key.txt
+  license-server-url:
+    file: ./secrets/license-server-url.txt
+
+volumes:
+  mongo_data: {}
+  rustfs_data: {}
+  app_data: {}
+
+networks:
+  docugarden-net:
+    driver: bridge
