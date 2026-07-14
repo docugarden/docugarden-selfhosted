@@ -17,6 +17,7 @@ RESET='\033[0m'
 OUTPUT_DIR="$(pwd)"
 SECRETS_DIR="$OUTPUT_DIR/secrets"
 ENV_FILE="$OUTPUT_DIR/.env"
+CADDYFILE="$OUTPUT_DIR/Caddyfile"
 
 # ---------- helpers ----------
 die() { echo -e "${RED}✗${RESET} $*" >&2; exit 1; }
@@ -105,7 +106,7 @@ gen_rand_base64() {
 write_secret_file() {
   local filepath="$1" content="$2"
   printf '%s' "$content" > "$filepath"
-  chmod 600 "$filepath"
+  chmod 644 "$filepath"
 }
 
 # ---------- intro ----------
@@ -136,20 +137,46 @@ if [[ -e "$ENV_FILE" ]]; then
 fi
 
 # ================================================================
-# Step 1: Public URL
+# Step 1: Public Domain
 # ================================================================
-print_step "1/5" "Public URL"
-echo -e "    ${DIM}Configure the URL where DocuGarden will be reachable.${RESET}"
-echo -e "    ${DIM}Use http://localhost if you are testing locally.${RESET}"
+print_step "1/5" "Public Domain"
+echo -e "    ${DIM}Configure the domain where DocuGarden will be reachable.${RESET}"
+echo -e "    ${DIM}Enter the domain or IP only — HTTPS is configured automatically.${RESET}"
 echo
 
-PUBLIC_URL="$(prompt_with_default "Public URL" "http://localhost")"
+DOMAIN="$(prompt_with_default "Public domain or IP" "localhost")"
+DOMAIN="$(echo "$DOMAIN" | sed -E 's|https?://||' | sed -E 's|/.*||')"
+PUBLIC_URL="https://${DOMAIN}"
+
 TZ="$(prompt_with_default "Timezone" "Etc/UTC")"
-FRONTEND_PORT="$(prompt_with_default "Frontend port" "80")"
+
+# Optional internal IP for LAN access. If provided, Caddy will serve a
+# self-signed certificate for the IP while the public domain uses Let's Encrypt.
+INTERNAL_IP="$(prompt_with_default "Internal LAN IP (optional, e.g. 192.168.1.10)" "")"
+INTERNAL_IP="$(echo "$INTERNAL_IP" | sed -E 's|https?://||' | sed -E 's|/.*||')"
+
+# For bare IP addresses, Caddy must use its internal CA (self-signed cert).
+# Let's Encrypt does not issue certificates for IP addresses.
+if [[ "$DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  DOMAIN_IS_IP="yes"
+else
+  DOMAIN_IS_IP="no"
+fi
+
+# When HTTPS is accessed by bare IP, browsers may not send SNI.
+# default_sni tells Caddy which certificate to serve in that case.
+if [[ "$DOMAIN_IS_IP" == "yes" ]]; then
+  DEFAULT_SNI="$DOMAIN"
+elif [[ -n "$INTERNAL_IP" ]]; then
+  DEFAULT_SNI="$INTERNAL_IP"
+else
+  DEFAULT_SNI=""
+fi
 
 echo -e "\n    ${GREEN}✓${RESET} URL: ${BOLD}${PUBLIC_URL}${RESET}"
+echo -e "    ${GREEN}✓${RESET} Domain: ${BOLD}${DOMAIN}${RESET}"
+[[ -n "$INTERNAL_IP" ]] && echo -e "    ${GREEN}✓${RESET} Internal IP: ${BOLD}${INTERNAL_IP}${RESET}"
 echo -e "    ${GREEN}✓${RESET} Timezone: ${BOLD}${TZ}${RESET}"
-echo -e "    ${GREEN}✓${RESET} Frontend port: ${BOLD}${FRONTEND_PORT}${RESET}"
 
 # ================================================================
 # Step 2: MongoDB Credentials
@@ -259,20 +286,76 @@ cat > "$ENV_FILE" <<EOF
 
 # ── Public URL ────────────────────────────────────────
 PUBLIC_URL=${PUBLIC_URL}
+DOMAIN=${DOMAIN}
+INTERNAL_IP=${INTERNAL_IP}
 TZ=${TZ}
-FRONTEND_PORT=${FRONTEND_PORT}
 
 # ── Docker Images ─────────────────────────────────────
 # Images are always pulled from Docker Hub (docugarden/*).
 IMAGE_TAG=${IMAGE_TAG}
 
 # ── CORS ──────────────────────────────────────────────
+# Origin allowed to call the backend. Defaults to empty (same-origin).
 CORS_ORIGIN=${PUBLIC_URL}
 EOF
 
 chmod 600 "$ENV_FILE"
 
 echo -e "    ${GREEN}✓${RESET} Environment file written to ${BOLD}.env${RESET}"
+
+# ================================================================
+# Write Caddyfile
+# ================================================================
+echo -e "${DIM}Writing Caddyfile...${RESET}"
+
+> "$CADDYFILE"
+if [[ -n "$DEFAULT_SNI" ]]; then
+  cat >> "$CADDYFILE" <<EOF
+{
+    default_sni $DEFAULT_SNI
+    servers {
+        protocols h1 h2
+    }
+}
+
+EOF
+else
+  cat >> "$CADDYFILE" <<EOF
+{
+    servers {
+        protocols h1 h2
+    }
+}
+
+EOF
+fi
+
+if [[ -n "$INTERNAL_IP" && "$INTERNAL_IP" != "$DOMAIN" ]]; then
+  cat >> "$CADDYFILE" <<EOF
+$INTERNAL_IP {
+    tls internal
+    reverse_proxy frontend:80
+}
+
+EOF
+fi
+
+if [[ "$DOMAIN_IS_IP" == "yes" ]]; then
+  cat >> "$CADDYFILE" <<EOF
+$DOMAIN {
+    tls internal
+    reverse_proxy frontend:80
+}
+EOF
+else
+  cat >> "$CADDYFILE" <<EOF
+$DOMAIN {
+    reverse_proxy frontend:80
+}
+EOF
+fi
+
+echo -e "    ${GREEN}✓${RESET} Caddyfile written to ${BOLD}Caddyfile${RESET}"
 
 # ================================================================
 # Summary
@@ -294,8 +377,10 @@ echo -e "    secrets/rustfs-secret-key.txt"
 echo -e "    secrets/license-key.txt"
 echo -e "    secrets/license-server-url.txt"
 echo -e "    .env"
+echo -e "    Caddyfile"
 echo
 echo -e "  ${BOLD}URL:${RESET}   ${PUBLIC_URL}"
+[[ -n "$INTERNAL_IP" ]] && echo -e "  ${BOLD}LAN:${RESET}   https://${INTERNAL_IP} (self-signed certificate; accept the browser warning)"
 echo
 echo -e "  ${YELLOW}Next steps:${RESET}"
 echo -e "    1. Review the generated files and adjust any values as needed"

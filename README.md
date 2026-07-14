@@ -39,12 +39,12 @@
 </pre>
 </center>
 
-# Docugarden Self-Hosted
+# DocuGarden Self-Hosted
 
-Self-host [Docugarden](https://www.Docugarden.com/) with Docker Compose.
+Self-host [DocuGarden](https://www.docugarden.com/) with Docker Compose.
 
-Docugarden is currently in closed beta.
-To request any information, email [info@Docugarden.com](mailto:info@Docugarden.com) or visit [https://www.Docugarden.com/](https://www.Docugarden.com/).
+DocuGarden is currently in closed beta.
+To request any information, email [info@docugarden.com](mailto:info@docugarden.com) or visit [https://www.docugarden.com/](https://www.docugarden.com/).
 
 ## Requirements
 
@@ -58,16 +58,19 @@ To request any information, email [info@Docugarden.com](mailto:info@Docugarden.c
 
 Install Docker Engine and Docker Compose by following the [official Ubuntu guide](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository).
 
+After installation, follow the [Docker Linux post-install steps](https://docs.docker.com/engine/install/linux-postinstall/) so you can run `docker` without `sudo`.
+
 ## Quick start
 
 ```bash
 # 1. Create the installation directory
-mkdir -p Docugarden
-cd Docugarden
+mkdir -p docugarden
+cd docugarden
 
 # 2. Download the required files
-curl -O https://raw.githubusercontent.com/Docugarden/Docugarden-selfhosted/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/Docugarden/Docugarden-selfhosted/main/setup-wizard.sh
+curl -fsSLO https://raw.githubusercontent.com/docugarden/docugarden-selfhosted/main/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/docugarden/docugarden-selfhosted/main/setup-wizard.sh
+curl -fsSLO https://raw.githubusercontent.com/docugarden/docugarden-selfhosted/main/Caddyfile
 
 # 3. Make the wizard executable
 chmod +x setup-wizard.sh
@@ -75,11 +78,11 @@ chmod +x setup-wizard.sh
 # 4. Run the interactive setup wizard
 ./setup-wizard.sh
 
-# 5. Start Docugarden
+# 5. Start DocuGarden
 docker compose up -d
 ```
 
-Open Docugarden at the URL you configured during setup (default: `http://localhost`) and follow the first-run setup to create the initial admin user.
+Open DocuGarden at the URL you configured during setup. Caddy automatically serves it over HTTPS: a real Let's Encrypt certificate for public domains, or a self-signed local certificate for `localhost`/IP addresses (browsers will show a warning you must accept).
 
 ## First login
 
@@ -88,13 +91,13 @@ On first access, the application prompts you to create the admin account. Use th
 ## What the wizard creates
 
 - `secrets/` — sensitive credentials (MongoDB, RustFS, JWT, license)
-- `.env` — non-secret environment variables
-
-Keep `secrets/` backed up; losing these files can make your data unrecoverable.
+- `.env` — non-secret environment variables (including `DOMAIN` for HTTPS)
+- `Caddyfile` — reverse proxy configuration; generated per-server by the wizard. Uses a real Let's Encrypt certificate for public domains and a self-signed local certificate (`tls internal`) for LAN IP addresses when provided.
 
 ## Services included
 
-- **Frontend** — served on the port configured in `.env` (default 80)
+- **Caddy** — reverse proxy with automatic HTTPS on ports 80 and 443
+- **Frontend** — internal nginx service
 - **Backend** — API on port 4000 internally
 - **MongoDB** — document database
 - **RustFS** — S3-compatible object storage
@@ -112,6 +115,17 @@ docker compose down
 docker compose up -d
 ```
 
+For a public domain, point its DNS A record to this server and make sure ports 80 and 443 are open. Caddy will request a Let's Encrypt certificate automatically.
+
+For dual access (public domain + LAN IP), run `./setup-wizard.sh` and provide both your public domain and your server's local IP address. The wizard generates a `Caddyfile` with `default_sni` set to the IP (so browsers that omit SNI when connecting to a bare IP still get the right certificate), a real certificate for the domain, and a self-signed certificate for the IP. You can also edit `Caddyfile` manually to add an IP block:
+
+```caddy
+192.168.10.22 {
+    tls internal
+    reverse_proxy frontend:80
+}
+```
+
 ## Upgrading
 
 ```bash
@@ -121,9 +135,10 @@ docker compose up -d
 
 ## Troubleshooting
 
-- **Port 80 is already in use:** set a different `FRONTEND_PORT` in `.env`.
 - **Containers stay unhealthy:** check logs with `docker compose logs -f`.
 - **License errors:** verify `secrets/license-key.txt` and `secrets/license-server-url.txt`.
+- **HTTPS does not work on an IP address:** Caddy serves IP addresses with a local self-signed certificate (`tls internal`). Browsers will show a warning you must accept; `curl -vk https://<ip>` can be used to test the TLS handshake. If you changed the Caddyfile or switched from a domain to an IP, run `docker compose down`, remove the `docugarden_caddy_data` volume (`docker volume rm docugarden_caddy_data`), then `docker compose up -d` so Caddy regenerates the certificate.
+- **HTTPS does not work on a domain:** ensure ports 80 and 443 are open and the DNS A record for your `DOMAIN` points to this server.
 
 ## License
 

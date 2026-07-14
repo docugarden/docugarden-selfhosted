@@ -1,0 +1,11 @@
+{
+    servers {
+        protocols h1 h2
+    }
+}
+
+# Default site. Set DOMAIN in .env or run ./setup-wizard.sh.
+# The wizard can also add a self-signed HTTPS block for a LAN IP.
+{$DOMAIN:localhost} {
+    reverse_proxy frontend:80
+}
