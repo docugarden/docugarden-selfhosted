@@ -39,32 +39,47 @@
 </pre>
 </center>
 
-# DocuGarden Self-Hosted
+# Docugarden Self-Hosted
 
-Self-host [DocuGarden](https://www.docugarden.com/) with Docker Compose.
+Self-host [Docugarden](https://www.Docugarden.com/) with Docker Compose.
+
+Docugarden is currently in closed beta.
+To request any information, email [info@Docugarden.com](mailto:info@Docugarden.com) or visit [https://www.Docugarden.com/](https://www.Docugarden.com/).
 
 ## Requirements
 
 - Docker Engine 24+
 - Docker Compose v2+
 - Bash
+- curl
 - OpenSSL (optional, used by the wizard for secure random values)
+
+## Install Docker
+
+Install Docker Engine and Docker Compose by following the [official Ubuntu guide](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository).
 
 ## Quick start
 
 ```bash
-# 1. Clone this repository
-git clone https://github.com/docugarden/docugarden-selfhosted.git
-cd docugarden-selfhosted
+# 1. Create the installation directory
+mkdir -p Docugarden
+cd Docugarden
 
-# 2. Run the interactive setup wizard
+# 2. Download the required files
+curl -O https://raw.githubusercontent.com/Docugarden/Docugarden-selfhosted/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/Docugarden/Docugarden-selfhosted/main/setup-wizard.sh
+
+# 3. Make the wizard executable
+chmod +x setup-wizard.sh
+
+# 4. Run the interactive setup wizard
 ./setup-wizard.sh
 
-# 3. Start DocuGarden
+# 5. Start Docugarden
 docker compose up -d
 ```
 
-Open DocuGarden at the URL you configured during setup (default: `http://localhost`) and follow the first-run setup to create the initial admin user.
+Open Docugarden at the URL you configured during setup (default: `http://localhost`) and follow the first-run setup to create the initial admin user.
 
 ## First login
 
@@ -75,7 +90,7 @@ On first access, the application prompts you to create the admin account. Use th
 - `secrets/` — sensitive credentials (MongoDB, RustFS, JWT, license)
 - `.env` — non-secret environment variables
 
-Both are ignored by Git. Keep `secrets/` backed up; losing these files can make your data unrecoverable.
+Keep `secrets/` backed up; losing these files can make your data unrecoverable.
 
 ## Services included
 
