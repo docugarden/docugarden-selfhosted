@@ -88,6 +88,26 @@ Open DocuGarden at the URL you configured during setup. Caddy automatically serv
 
 On first access, the application prompts you to create the admin account. Use that screen to set up the initial user and password.
 
+## Database seeding
+
+Instead of creating the first user manually, you can initialize the database from a MongoDB archive (`db/docugarden.archive`). The stack has `AUTO_SEED=false`, so seeding must be triggered manually.
+
+Make sure the stack is running, then run:
+
+```bash
+# Safe restore: fails if the database already contains data
+make seed
+
+# Force restore, dropping existing collections first (destructive)
+make seed-drop
+
+# Or use the helper script directly
+./import-archive.sh
+./import-archive.sh --drop
+```
+
+To use a different archive file, replace `db/docugarden.archive` on the host before running the import.
+
 ## What the wizard creates
 
 - `secrets/` — sensitive credentials (MongoDB, RustFS, JWT, license)
