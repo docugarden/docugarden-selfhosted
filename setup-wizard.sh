@@ -330,11 +330,32 @@ else
 EOF
 fi
 
+cat >> "$CADDYFILE" <<'EOF'
+(docugarden_routes) {
+    handle /api/* {
+        reverse_proxy backend:4000
+    }
+
+    handle /api-docs* {
+        reverse_proxy backend:4000
+    }
+
+    handle /uploads/* {
+        reverse_proxy backend:4000
+    }
+
+    handle {
+        reverse_proxy frontend:80
+    }
+}
+
+EOF
+
 if [[ -n "$INTERNAL_IP" && "$INTERNAL_IP" != "$DOMAIN" ]]; then
   cat >> "$CADDYFILE" <<EOF
 $INTERNAL_IP {
     tls internal
-    reverse_proxy frontend:80
+    import docugarden_routes
 }
 
 EOF
@@ -344,13 +365,13 @@ if [[ "$DOMAIN_IS_IP" == "yes" ]]; then
   cat >> "$CADDYFILE" <<EOF
 $DOMAIN {
     tls internal
-    reverse_proxy frontend:80
+    import docugarden_routes
 }
 EOF
 else
   cat >> "$CADDYFILE" <<EOF
 $DOMAIN {
-    reverse_proxy frontend:80
+    import docugarden_routes
 }
 EOF
 fi

@@ -112,7 +112,7 @@ To use a different archive file, replace `db/docugarden.archive` on the host bef
 
 - `secrets/` — sensitive credentials (MongoDB, RustFS, JWT, license)
 - `.env` — non-secret environment variables (including `DOMAIN` for HTTPS)
-- `Caddyfile` — reverse proxy configuration; generated per-server by the wizard. Uses a real Let's Encrypt certificate for public domains and a self-signed local certificate (`tls internal`) for LAN IP addresses when provided.
+- `Caddyfile` — reverse proxy configuration; generated per-server by the wizard. API, API documentation, and upload requests are sent directly to the backend, while all other requests are sent to the frontend. Uses a real Let's Encrypt certificate for public domains and a self-signed local certificate (`tls internal`) for LAN IP addresses when provided.
 
 ## Services included
 
@@ -142,7 +142,7 @@ For dual access (public domain + LAN IP), run `./setup-wizard.sh` and provide bo
 ```caddy
 192.168.10.22 {
     tls internal
-    reverse_proxy frontend:80
+    import docugarden_routes
 }
 ```
 
