@@ -88,7 +88,6 @@ services:
       - rustfs-access-key
       - rustfs-secret-key
       - license-key
-      - license-server-url
     environment:
       - NODE_ENV=production
       - PORT=4000
@@ -178,8 +177,6 @@ secrets:
     file: ./secrets/rustfs-secret-key.txt
   license-key:
     file: ./secrets/license-key.txt
-  license-server-url:
-    file: ./secrets/license-server-url.txt
 
 volumes:
   mongo_data: {}

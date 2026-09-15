@@ -243,10 +243,11 @@ echo -e "    ${GREEN}✓${RESET} MongoDB signing key generated ${DIM}(64-byte ba
 # ================================================================
 print_step "5/5" "License & Image Tag"
 echo -e "    ${DIM}Enter your DocuGarden license and choose the image tag to run.${RESET}"
+echo -e "    ${DIM}The license-server address is built into the production backend image.${RESET}"
+echo -e "    ${DIM}Use this same license key when creating the initial admin user.${RESET}"
 echo
 
 LICENSE_KEY="$(prompt_secret_hidden "License key")"
-LICENSE_SERVER_URL="$(prompt_required "License server URL" "https://license.docugarden.app")"
 
 echo
 
@@ -271,9 +272,8 @@ write_secret_file "$SECRETS_DIR/mongodb-signing-key.txt" "$MONGODB_SIGNING_KEY"
 write_secret_file "$SECRETS_DIR/rustfs-access-key.txt" "$RUSTFS_ACCESS_KEY"
 write_secret_file "$SECRETS_DIR/rustfs-secret-key.txt" "$RUSTFS_SECRET_KEY"
 write_secret_file "$SECRETS_DIR/license-key.txt" "$LICENSE_KEY"
-write_secret_file "$SECRETS_DIR/license-server-url.txt" "$LICENSE_SERVER_URL"
 
-echo -e "    ${GREEN}✓${RESET} 10 secret files written to ${BOLD}secrets/${RESET}"
+echo -e "    ${GREEN}✓${RESET} 9 secret files written to ${BOLD}secrets/${RESET}"
 
 # ================================================================
 # Write .env
@@ -396,7 +396,6 @@ echo -e "    secrets/mongodb-signing-key.txt"
 echo -e "    secrets/rustfs-access-key.txt"
 echo -e "    secrets/rustfs-secret-key.txt"
 echo -e "    secrets/license-key.txt"
-echo -e "    secrets/license-server-url.txt"
 echo -e "    .env"
 echo -e "    Caddyfile"
 echo
@@ -410,6 +409,7 @@ echo -e "       ${DIM}docker compose up -d${RESET}"
 echo -e "    3. Verify all services are healthy:"
 echo -e "       ${DIM}docker compose ps${RESET}"
 echo -e "    4. Open DocuGarden in your browser and create the initial admin user"
+echo -e "       ${DIM}Enter the same license key saved in secrets/license-key.txt${RESET}"
 echo
 echo -e "  ${YELLOW}⚠ Important:${RESET}"
 echo -e "    The secrets/ directory contains sensitive credentials."

@@ -86,7 +86,26 @@ Open DocuGarden at the URL you configured during setup. Caddy automatically serv
 
 ## First login
 
-On first access, the application prompts you to create the admin account. Use that screen to set up the initial user and password.
+On first access, the application prompts you to create the admin account. Use that screen to set up the initial user and password, and enter the same license key saved by the wizard in `secrets/license-key.txt`.
+
+## License verification
+
+The production backend image has a built-in license-server address and verifier public key. Successful responses must be signed by the DocuGarden license server and bound to the current request. The server's signing private key is never needed on a self-hosted installation.
+
+Only `secrets/license-key.txt` is configurable. There is no license-server URL secret or runtime license-check bypass in the production image. Existing `secrets/license-server-url.txt` files from older installations are unused by the updated image.
+
+The current backend release configuration uses `http://licenseserver.docugarden.cloud:40965`. Allow outbound TCP port 40965 from the backend to that host; do not publish port 40965 on the self-hosted installation. This temporary HTTP connection is unencrypted, even when the self-hosted application's own Caddy serves HTTPS. Signed responses protect response integrity, not request confidentiality.
+
+The application's Caddy ports 80/443 are unrelated to the remote license-server port. A future license-server HTTPS migration requires an updated backend image with the new compiled endpoint, not a local URL setting.
+
+License checks run at backend startup and normally every 4–6 hours. Site usage on the license-server dashboard reflects the last report, not immediate site changes. To trigger a check after changing the license key or testing site usage:
+
+```bash
+docker compose up -d --force-recreate backend
+docker compose logs --tail=100 backend
+```
+
+The key must be valid and authorize this installation. A healthy backend container alone does not confirm a successful license check; inspect the license-check logs for the result. Never share logs containing a license key.
 
 ## Database seeding
 
@@ -156,7 +175,7 @@ docker compose up -d
 ## Troubleshooting
 
 - **Containers stay unhealthy:** check logs with `docker compose logs -f`.
-- **License errors:** verify `secrets/license-key.txt` and `secrets/license-server-url.txt`.
+- **License errors:** verify `secrets/license-key.txt`. The production backend uses the built-in DocuGarden license-server endpoint and always enforces license checks.
 - **HTTPS does not work on an IP address:** Caddy serves IP addresses with a local self-signed certificate (`tls internal`). Browsers will show a warning you must accept; `curl -vk https://<ip>` can be used to test the TLS handshake. If you changed the Caddyfile or switched from a domain to an IP, run `docker compose down`, remove the `docugarden_caddy_data` volume (`docker volume rm docugarden_caddy_data`), then `docker compose up -d` so Caddy regenerates the certificate.
 - **HTTPS does not work on a domain:** ensure ports 80 and 443 are open and the DNS A record for your `DOMAIN` points to this server.
 
