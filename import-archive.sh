@@ -10,7 +10,7 @@ usage() {
   cat <<EOF
 Usage: $0 [--drop]
 
-Restore the bundled MongoDB archive into the DocuGarden database.
+Restore a MongoDB archive into the DocuGarden database.
 The database container (${DB_CONTAINER}) must already be running.
 
 Options:
@@ -54,6 +54,24 @@ docker run --rm \
     USER=$(cat /secrets/mongodb-username.txt)
     PASS=$(cat /secrets/mongodb-password.txt)
     DROP_FLAG=${SEED_FORCE:+--drop}
+
+    if [ -z "$DROP_FLAG" ]; then
+      COLLECTION_COUNT=$(mongosh \
+        --quiet \
+        --host="127.0.0.1" \
+        --port="27017" \
+        --username="$USER" \
+        --password="$PASS" \
+        --authenticationDatabase=admin \
+        "$DB" \
+        --eval="db.getCollectionNames().length")
+      if [ "$COLLECTION_COUNT" -ne 0 ]; then
+        echo "Refusing to restore: database $DB contains $COLLECTION_COUNT collection(s)." >&2
+        echo "Use --drop only if you intend to replace the existing database." >&2
+        exit 1
+      fi
+    fi
+
     echo "Restoring archive into $DB"
     exec mongorestore \
       --archive=/seed-data/archive \
@@ -63,5 +81,6 @@ docker run --rm \
       --username="$USER" \
       --password="$PASS" \
       --authenticationDatabase=admin \
+      --stopOnError \
       $DROP_FLAG
   '

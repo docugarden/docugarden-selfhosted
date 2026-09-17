@@ -178,6 +178,11 @@ echo -e "    ${GREEN}✓${RESET} Domain: ${BOLD}${DOMAIN}${RESET}"
 [[ -n "$INTERNAL_IP" ]] && echo -e "    ${GREEN}✓${RESET} Internal IP: ${BOLD}${INTERNAL_IP}${RESET}"
 echo -e "    ${GREEN}✓${RESET} Timezone: ${BOLD}${TZ}${RESET}"
 
+CORS_ORIGIN="$PUBLIC_URL"
+if [[ -n "$INTERNAL_IP" && "$INTERNAL_IP" != "$DOMAIN" ]]; then
+  CORS_ORIGIN="${CORS_ORIGIN},https://${INTERNAL_IP}"
+fi
+
 # ================================================================
 # Step 2: MongoDB Credentials
 # ================================================================
@@ -295,8 +300,8 @@ TZ=${TZ}
 IMAGE_TAG=${IMAGE_TAG}
 
 # ── CORS ──────────────────────────────────────────────
-# Origin allowed to call the backend. Defaults to empty (same-origin).
-CORS_ORIGIN=${PUBLIC_URL}
+# Comma-separated origins allowed to call the backend.
+CORS_ORIGIN=${CORS_ORIGIN}
 EOF
 
 chmod 600 "$ENV_FILE"
