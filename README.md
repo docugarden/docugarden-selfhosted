@@ -262,3 +262,34 @@ docker compose up -d
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+## Optional local SMTP mail service (prepared; acceptance pending)
+
+The default stack keeps email disabled. The optional `docker-compose.mail.yml` adds a local REST API, BullMQ worker and Redis queue; the delivery ledger uses a separate `docugarden_mail` database in the existing MongoDB server. No Docugarden cloud mail endpoint or Google credential is used. Existing invitations/password recovery are not implemented by this service foundation; administrators can send a fixed test message to their own account and inspect masked history.
+
+This path is implemented and statically validated, but its end-to-end SMTP/self-hosted acceptance run is deliberately deferred. Do not treat the profile as production-validated.
+
+1. Obtain an SMTP server, authorized sender address and credentials from your own provider. The server must be reachable from the worker. TLS certificate verification is mandatory; use `NODE_EXTRA_CA_CERTS` and a read-only certificate mount if a private CA is needed, rather than disabling verification.
+2. After the normal setup wizard has prepared MongoDB secrets, run the offline configuration helper. It asks for the SMTP password privately and does not start containers or send email:
+
+   ```sh
+   python3 setup-mail.py --host smtp.example.com --from-address notifications@example.com --username notifications@example.com --port 587 --tls starttls
+   ```
+
+   For implicit TLS use port 465 and `--tls implicit`. Generated files under `secrets/` must remain private and be backed up securely. The helper refuses to overwrite an existing mail configuration. Preserve `mail-platform/encryption-key` across updates/restores: replacing it makes queued payloads unreadable. SMTP password rotation updates `mail-smtp-password.txt` and requires a worker restart; do not rerun the helper to rotate one credential.
+3. Set `IMAGE_TAG` and `MAIL_IMAGE_TAG` in `.env` to a published backend/frontend release containing the mail changes. `mail-service-v1` in the example is a release placeholder, not an already-published image.
+4. When authorized for acceptance, use the same Compose arguments for all lifecycle operations:
+
+   ```sh
+   docker compose -f docker-compose.yml -f docker-compose.mail.yml --profile mail up -d
+   ```
+
+   In Admin → General settings → Email service, inspect readiness and enable the service, then send the fixed test to your own account. `Accepted` means SMTP server acceptance, not inbox confirmation. Verify actual receipt before declaring acceptance complete.
+
+The local backend uses `MAIL_MODE=smtp`, `MAIL_SERVICE_URL=http://mail-api:4010` and a dedicated mounted installation token. Credentials and SMTP transport parameters remain deployment-managed; the UI supports enable/disable, test and history, while customer Google/Microsoft connectors remain disabled. No broker or mail API port is published to the host.
+
+Redis uses persistent AOF with `noeviction`; its data is in `mail_redis_data`. Add this volume, the mail ledger database and the generated secrets to your backup/restore process. This single-node stack is not highly available. AOF every-second persistence and backups do not guarantee zero loss. Interrupted or timed-out transmissions can have an uncertain outcome and are not automatically resent. Inspect provider evidence and history rather than deleting queues or resetting delivery state. Test requests expire after ten minutes; masked metadata/idempotency is retained for 30 days.
+
+To disable locally through the UI, turn off email; workers stop pending messages before transmitting, though an in-flight email may complete. To remove the optional stack later, revert the backend mail environment and stop only the mail services using the same Compose files. Preserve Redis/ledger/secrets for inspection. Do not use `down -v` to disable mail: it would delete application volumes too.
+
+For static validation after secret preparation, use `docker compose -f docker-compose.yml -f docker-compose.mail.yml --profile mail config --quiet` (do not print the full rendered configuration). No self-hosted runtime or SMTP test is performed by these PRs.

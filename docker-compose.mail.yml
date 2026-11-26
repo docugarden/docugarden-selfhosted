@@ -1,0 +1,94 @@
+services:
+  backend:
+    environment:
+      MAIL_MODE: smtp
+      MAIL_SERVICE_URL: http://mail-api:4010
+      MAIL_SERVICE_TOKEN_FILE: /run/secrets/mail-client-token
+    secrets:
+      - mail-client-token
+
+  mail-api:
+    profiles: [mail]
+    image: docugarden/docugarden-backend:${MAIL_IMAGE_TAG:-mail-service-v1}
+    command: [node, apps/backend/dist/mail/server.js]
+    env_file: ./secrets/mail-runtime.env
+    environment:
+      PORT: '4010'
+      MAIL_TRANSPORT: smtp
+      MAIL_REDIS_URL_FILE: /run/secrets/mail-platform/redis-url
+      MAIL_MONGODB_URI_FILE: /run/secrets/mail-platform/mongo-uri
+      MAIL_ENCRYPTION_KEY_FILE: /run/secrets/mail-platform/encryption-key
+      MAIL_TENANTS_FILE: /run/secrets/mail-platform/tenants.json
+    volumes:
+      - ./secrets/mail-platform:/run/secrets/mail-platform:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      mail-redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4010/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 60s
+    networks: [docugarden-net]
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+
+  mail-worker:
+    profiles: [mail]
+    image: docugarden/docugarden-backend:${MAIL_IMAGE_TAG:-mail-service-v1}
+    command: [node, apps/backend/dist/mail/worker.js]
+    env_file: ./secrets/mail-runtime.env
+    environment:
+      MAIL_TRANSPORT: smtp
+      MAIL_REDIS_URL_FILE: /run/secrets/mail-platform/redis-url
+      MAIL_MONGODB_URI_FILE: /run/secrets/mail-platform/mongo-uri
+      MAIL_ENCRYPTION_KEY_FILE: /run/secrets/mail-platform/encryption-key
+      MAIL_TENANTS_FILE: /run/secrets/mail-platform/tenants.json
+      MAIL_SMTP_PASSWORD_FILE: /run/secrets/mail-smtp-password
+    volumes:
+      - ./secrets/mail-platform:/run/secrets/mail-platform:ro
+    secrets:
+      - mail-smtp-password
+    depends_on:
+      db:
+        condition: service_healthy
+      mail-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 60s
+    networks: [docugarden-net]
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+
+  mail-redis:
+    profiles: [mail]
+    image: redis:7.4.2-alpine
+    command: [sh, -ec, 'exec redis-server --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy noeviction --requirepass "$$(cat /run/secrets/mail-redis-password)"']
+    secrets:
+      - mail-redis-password
+    volumes: [mail_redis_data:/data]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$(cat /run/secrets/mail-redis-password)" redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks: [docugarden-net]
+
+secrets:
+  mail-client-token:
+    file: ./secrets/mail-client-token.txt
+  mail-smtp-password:
+    file: ./secrets/mail-smtp-password.txt
+  mail-redis-password:
+    file: ./secrets/mail-platform/redis-password
+
+volumes:
+  mail_redis_data: {}

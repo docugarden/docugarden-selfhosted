@@ -1,6 +1,7 @@
 # Secrets
 secrets/*.txt
 secrets/*/
+secrets/mail-runtime.env
 !.gitkeep
 
 # Environment
