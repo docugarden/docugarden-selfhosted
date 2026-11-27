@@ -77,6 +77,7 @@ services:
         condition: service_healthy
     volumes:
       - app_data:/app/apps/backend/uploads
+      - ./mail-secrets:/run/mail-secrets:ro
       - /etc/machine-id:/etc/machine-id:ro
     secrets:
       - mongodb-username
@@ -93,6 +94,17 @@ services:
       - PORT=4000
       - CORS_ORIGIN=${CORS_ORIGIN:-}
       - FRONTEND_URL=${PUBLIC_URL:-https://localhost}
+      - SYSTEM_MAIL_PROVIDER=${SYSTEM_MAIL_PROVIDER:-disabled}
+      - SYSTEM_MAIL_FROM_ADDRESS=${SYSTEM_MAIL_FROM_ADDRESS:-}
+      - SYSTEM_MAIL_FROM_NAME=${SYSTEM_MAIL_FROM_NAME:-Docugarden}
+      - SYSTEM_MAIL_SMTP_HOST=${SYSTEM_MAIL_SMTP_HOST:-}
+      - SYSTEM_MAIL_SMTP_PORT=${SYSTEM_MAIL_SMTP_PORT:-587}
+      - SYSTEM_MAIL_SMTP_TLS=${SYSTEM_MAIL_SMTP_TLS:-starttls}
+      - SYSTEM_MAIL_SMTP_USERNAME=${SYSTEM_MAIL_SMTP_USERNAME:-}
+      - SYSTEM_MAIL_SMTP_PASSWORD_FILE=${SYSTEM_MAIL_SMTP_PASSWORD_FILE:-}
+      - SYSTEM_MAIL_GRAPH_TENANT_ID=${SYSTEM_MAIL_GRAPH_TENANT_ID:-}
+      - SYSTEM_MAIL_GRAPH_CLIENT_ID=${SYSTEM_MAIL_GRAPH_CLIENT_ID:-}
+      - SYSTEM_MAIL_GRAPH_CLIENT_SECRET_FILE=${SYSTEM_MAIL_GRAPH_CLIENT_SECRET_FILE:-}
       - TZ=${TZ:-Etc/UTC}
       - MONGODB_HOST=db
       - MONGODB_PORT=27017
