@@ -262,3 +262,7 @@ docker compose up -d
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+## System mail
+
+See [System mail setup](SYSTEM-MAIL.md) for SMTP and Microsoft Graph, optional credential files, invitation/reset behavior and release requirements.
